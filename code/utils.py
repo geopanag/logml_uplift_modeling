@@ -36,7 +36,7 @@ def train(mask: np.ndarray,
     # pred_c = model(torch.cat[xu,0], xp, edge_index)
     # loss = criterion(treatment[mask], pred_t[mask], pred_c[mask], outcome[mask])
     pred = model(xu, xp, edge_index)
-    loss = criterion(treatment[mask], pred[mask], outcome[mask])
+    loss = criterion(pred[mask], outcome[mask])
     
     loss.backward()  
     optimizer.step() 
@@ -58,8 +58,8 @@ def test(mask: np.ndarray,
     # pred_t, pred_c, hidden_treatment, hidden_control = model(xu, xp, edge_index)
     # loss = criterion(treatment[mask], pred_t[mask], pred_c[mask], outcome[mask])
 
-    pred = model(torch.cat[xu], xp, edge_index)
-    loss = criterion(treatment[mask], pred[mask], outcome[mask])
+    pred = model(xu, xp, edge_index)
+    loss = criterion(pred[mask], outcome[mask])
     return loss
 
 
@@ -127,9 +127,9 @@ def evaluate(model:torch.nn.Module,
     mask = test_indices
     # pred_t, pred_c, hidden_treatment, hidden_control = model(xu, xp, edge_index)
     # test_loss = criterion(treatment[mask], pred_t[mask], pred_c[mask], outcome[mask])
-    pred_c = model(torch.cat([xu,treatment_u],dim=1), xp, edge_index)
+    pred_c = model(torch.cat((xu,treatment_u),dim=1), xp, edge_index)
     treatment_u[mask]=1
-    pred_t = model(torch.cat([xu,treatment_u],dim=1), xp, edge_index)
+    pred_t = model(torch.cat((xu,treatment_u),dim=1), xp, edge_index)
     test_loss = criterion(treatment[mask], pred_t[mask], pred_c[mask], outcome[mask])
 
     treatment_test = treatment[test_indices].detach().cpu().numpy()

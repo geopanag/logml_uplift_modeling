@@ -26,10 +26,10 @@ class BipartiteSAGE2mod(torch.nn.Module):
         self.num_layers = num_layers
 
         self.hidden_common1 = nn.Linear(hidden_channels + num_layers*hidden_channels, hidden_channels)
-        self.hidden_common2 = nn.Linear(hidden_channels, hidden_channels)
+        self.hidden_common2 = nn.Linear(hidden_channels, int(hidden_channels/2) )
 
-        self.hidden_control = nn.Linear(hidden_channels, int(hidden_channels/2))
-        self.hidden_treatment = nn.Linear(hidden_channels, int(hidden_channels/2))
+        #self.hidden_control = nn.Linear(hidden_channels, int(hidden_channels/2))
+        #self.hidden_treatment = nn.Linear(hidden_channels, int(hidden_channels/2))
 
         # self.out_control = nn.Linear( int(hidden_channels/2), out_channels)
         # self.out_treatment = nn.Linear( int(hidden_channels/2), out_channels)

@@ -88,16 +88,17 @@ def main():
                                         dtype=torch.float
                                     )
             treatment_n = make_treatment_feature(xu, train_indices, treatment)
-            treatment_u = treatment_n[:,1]
+            treatment_u = treatment_n[:,1].to(device)
+            print(treatment_u.shape)
             product_treatment_matrix = torch.sparse.mm(sparse_matrix_edge_index.t(), treatment_n.to_sparse())
             treatment_neighborhood = torch.sparse.mm(sparse_matrix_edge_index, product_treatment_matrix)
-            treatment_neighborhood=treatment_neighborhood.to_dense()
-            print(treatment_neighborhood)
+            treatment_neighborhood=treatment_neighborhood.to_dense().to(device)
+            print(treatment_neighborhood.shape)
             min_tn = treatment_neighborhood.min(dim=0,keepdim=True).values
             max_tn = treatment_neighborhood.max(dim=0,keepdim=True).values
             treatment_neighborhood = (treatment_neighborhood-min_tn)/(max_tn-min_tn)
 
-            xu = torch.cat([xu, treatment_neighborhood],dim=1)
+            xu = torch.cat((xu, treatment_neighborhood),dim=1)
             edge_index_up_current[1] = edge_index_up_current[1]+ xu.shape[0]
 
             edge_index_up_current = torch.cat([edge_index_up_current,edge_index_up_current.flip(dims=[0])],dim=1).to(device)
@@ -106,12 +107,12 @@ def main():
             model = BipartiteSAGE2mod(xu.shape[1]+1, xp.shape[1] , n_hidden, out_channels, no_layers, conv_layer, dropout).to(device)
             optimizer = Adam(model.parameters(), lr=lr, weight_decay = l2_reg)
 
-            out = model( xu, xp , edge_index_up_current) # init params
+            out = model( torch.cat((xu, treatment_u.unsqueeze(1)), dim=1), xp , edge_index_up_current) # init params
 
-            train_losses, val_losses = experiment(model, optimizer, num_epochs, train_indices, val_indices, edge_index_up_current, treatment, outcome, torch.cat([xu, treatment_u],dim=1), xp, model_file_name, print_per_epoch, patience,criterion_train)
+            train_losses, val_losses = experiment(model, optimizer, num_epochs, train_indices, val_indices, edge_index_up_current, treatment, outcome, torch.cat((xu, treatment_u.unsqueeze(1)),dim=1), xp, model_file_name, print_per_epoch, patience,criterion_train)
 
             model = torch.load(model_file_name).to(device)
-            up40, up20, test_loss = evaluate(model, test_indices, treatment, outcome, xu, xp, edge_index_up_current, treatment_u, criterion_eval)
+            up40, up20, test_loss = evaluate(model, test_indices, treatment, outcome, xu, xp, edge_index_up_current, treatment_u.unsqueeze(1), criterion_eval)
 
             print(f'mse {test_loss:.4f} with avg abs value {torch.mean(torch.abs(outcome[test_indices]))}')
             print(f'up40 {up40:.4f}')
