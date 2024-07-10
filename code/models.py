@@ -1,10 +1,10 @@
 import torch
 from torch import nn
-from torch_geometric.nn import SAGEConv
+from torch_geometric.nn import SAGEConv, GATConv, GINConv, GCNConv
 
 
 class BipartiteSAGE2mod(torch.nn.Module):
-    def __init__(self, nfeat:int, nproduct:int , hidden_channels:int , out_channels: int, num_layers:int, dropout_rate:float =0):
+    def __init__(self, nfeat:int, nproduct:int , hidden_channels:int , out_channels: int, num_layers:int, arch: str, dropout_rate:float =0):
         super().__init__()
         self.convs = torch.nn.ModuleList()
 
@@ -12,9 +12,15 @@ class BipartiteSAGE2mod(torch.nn.Module):
         self.item_embed =  nn.Linear(nproduct, hidden_channels)
 
         self.convs = torch.nn.ModuleList()
-
+        self.arch = arch
+        print("Using ", self.arch, "...")
         for _ in range(num_layers):
-            self.convs.append(SAGEConv((-1,-1), hidden_channels))
+            if self.arch == "sageconv":
+                self.convs.append(SAGEConv((-1,-1), hidden_channels))
+            elif self.arch == "gatconv":
+                self.convs.append(GATConv((-1,-1), hidden_channels))
+            elif self.arch =="gcnconv":
+                self.convs.append(GCNConv(-1, hidden_channels))
             
         
         self.num_layers = num_layers
