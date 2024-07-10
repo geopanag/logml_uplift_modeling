@@ -5,7 +5,7 @@ import torch
 from sklearn.model_selection import KFold
 
 from models import BipartiteSAGE2mod
-from utils import outcome_regression_loss_l1, uplift_score, set_seed, experiment, evaluate
+from utils import outcome_regression_loss_l1, uplift_score, set_seed, experiment, evaluate, outcome_regression_loss_l1_one_output
 
 from torch.optim import Adam
 
@@ -15,13 +15,18 @@ from xgboost import XGBRegressor
 from causalml.inference.tree.causal.causaltree import CausalTreeRegressor
 
 
+def make_treatment_feature(x, train_indices, treatment):
+    t_hat = torch.zeros(x.size(0), 2, dtype=torch.float)
+    t_hat[train_indices,treatment.type(torch.LongTensor)[train_indices]]=1
+    return t_hat
+
 
 def main():
      
     data = torch.load("../data/retail/processed/data.pt")[0]
 
     results_file_name = "../results/results_start.csv"
-    conv_layer = "gcnconv"  # gcnconv, gatconv, sageconv
+    conv_layer = "sageconv"  # gcnconv, gatconv, sageconv
     
     n_hidden = 16
     lr = 0.01
@@ -40,7 +45,8 @@ def main():
 
     print_per_epoch = 50
 
-    criterion = outcome_regression_loss_l1
+    criterion_train = outcome_regression_loss_l1_one_output
+    criterion_eval = outcome_regression_loss_l1
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -52,7 +58,7 @@ def main():
 
     set_seed(seed)
     
-    for i in [20,10,7,5,4,3]: # different slip percentage
+    for i in [10]: # different slip percentage
         k = i
         model_file_name = "../models/"+conv_layer+"_L_"+str(no_layers)+ "_kfold_"+str(k)+ "_model.pt"
         print("training percentage is ", 1/k)
@@ -75,29 +81,44 @@ def main():
             ## Keep the graph before the treatment and ONLY the edges of the the train nodes (i.e. after the treatment)
             mask = torch.isin(data['user','buys','product']['edge_index'][0, :], torch.tensor(train_indices) )
             edge_index_up_current = data['user','buys','product']['edge_index'][ : , (~data['user','buys','product']['treatment']) | (mask) ]
+            sparse_matrix_edge_index = torch.sparse_coo_tensor(
+                                        edge_index_up_current,
+                                        torch.ones(edge_index_up_current.shape[1]),
+                                        (xu.shape[0], xp.shape[0]),
+                                        dtype=torch.float
+                                    )
+            treatment_n = make_treatment_feature(xu, train_indices, treatment)
+            treatment_u = treatment_n[:,1]
+            product_treatment_matrix = torch.sparse.mm(sparse_matrix_edge_index.t(), treatment_n.to_sparse())
+            treatment_neighborhood = torch.sparse.mm(sparse_matrix_edge_index, product_treatment_matrix)
+            min_tn = treatment_neighborhood.min(dim=0,keepdim=True).values
+            max_tn = treatment_neighborhood.max(dim=0,keepdim=True).values
+            treatment_neighborhood = (treatment_neighborhood-min_tn)/(max_tn-min_tn)
 
+            xu = torch.cat([xu, treatment_neighborhood],dim=1)
             edge_index_up_current[1] = edge_index_up_current[1]+ xu.shape[0]
 
             edge_index_up_current = torch.cat([edge_index_up_current,edge_index_up_current.flip(dims=[0])],dim=1).to(device)
 
             
-            model = BipartiteSAGE2mod(xu.shape[1], xp.shape[1] , n_hidden, out_channels, no_layers, conv_layer, dropout).to(device)
+            model = BipartiteSAGE2mod(xu.shape[1]+1, xp.shape[1] , n_hidden, out_channels, no_layers, conv_layer, dropout).to(device)
             optimizer = Adam(model.parameters(), lr=lr, weight_decay = l2_reg)
 
             out = model( xu, xp , edge_index_up_current) # init params
 
-            train_losses, val_losses = experiment(model, optimizer, num_epochs, train_indices, val_indices, edge_index_up_current, treatment, outcome, xu, xp, model_file_name, print_per_epoch, patience,criterion)
+            train_losses, val_losses = experiment(model, optimizer, num_epochs, train_indices, val_indices, edge_index_up_current, treatment, outcome, torch.cat([xu, treatment_u],dim=1), xp, model_file_name, print_per_epoch, patience,criterion_train)
 
             model = torch.load(model_file_name).to(device)
-            up40, up20, test_loss = evaluate(model, test_indices, treatment, outcome, xu, xp, edge_index_up_current, criterion)
+            up40, up20, test_loss = evaluate(model, test_indices, treatment, outcome, xu, xp, edge_index_up_current, treatment_u, criterion_eval)
 
-            # print(f'mse {test_loss:.4f} with avg abs value {torch.mean(torch.abs(outcome[test_indices]))}')
-            # print(f'up40 {up40:.4f}')
-            # print(f'up20 {up20:.4f}')
+            print(f'mse {test_loss:.4f} with avg abs value {torch.mean(torch.abs(outcome[test_indices]))}')
+            print(f'up40 {up40:.4f}')
+            print(f'up20 {up20:.4f}')
             
             result_row = []
             result_row.append(up40)
             result_row.append(up20)
+            result_row.append(test_loss)
             
         
             # Benchmarks
@@ -158,7 +179,7 @@ def main():
             
             results.append(result_row)
         
-        results = pd.DataFrame(results,columns=['up40_gnn','up20_gnn','up40_t','up20_t','up40_x','up20_x','up40_tree','up20_tree'])
+        results = pd.DataFrame(results,columns=['up40_gnn','up20_gnn','test_loss','up40_t','up20_t','up40_x','up20_x','up40_tree','up20_tree'])
         
         results.to_csv(results_file_name)
         

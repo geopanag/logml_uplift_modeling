@@ -31,9 +31,9 @@ class BipartiteSAGE2mod(torch.nn.Module):
         self.hidden_control = nn.Linear(hidden_channels, int(hidden_channels/2))
         self.hidden_treatment = nn.Linear(hidden_channels, int(hidden_channels/2))
 
-        self.out_control = nn.Linear( int(hidden_channels/2), out_channels)
-        self.out_treatment = nn.Linear( int(hidden_channels/2), out_channels)
-
+        # self.out_control = nn.Linear( int(hidden_channels/2), out_channels)
+        # self.out_treatment = nn.Linear( int(hidden_channels/2), out_channels)
+        self.out = nn.Linear( int(hidden_channels/2), out_channels)
         
         self.dropout = nn.Dropout(dropout_rate)
         
@@ -59,10 +59,11 @@ class BipartiteSAGE2mod(torch.nn.Module):
         hidden = self.dropout(self.activation(self.hidden_common1(out)))
         hidden = self.dropout(self.activation(self.hidden_common2(hidden)))
         
-        hidden_1t0 = self.dropout(self.activation(self.hidden_control(hidden)))
-        hidden_1t1 = self.dropout(self.activation(self.hidden_treatment(hidden)))
+        # hidden_1t0 = self.dropout(self.activation(self.hidden_control(hidden)))
+        # hidden_1t1 = self.dropout(self.activation(self.hidden_treatment(hidden)))
 
-        out_2t0 = self.activation(self.out_control(hidden_1t0))
-        out_2t1 = self.activation(self.out_treatment(hidden_1t1))
-        
-        return out_2t1, out_2t0, hidden_1t1, hidden_1t0
+        # out_2t0 = self.activation(self.out_control(hidden_1t0))
+        # out_2t1 = self.activation(self.out_treatment(hidden_1t1))
+        out = self.activation(self.out(hidden))
+
+        return out

@@ -32,8 +32,11 @@ def train(mask: np.ndarray,
     model.train()
     optimizer.zero_grad() 
 
-    pred_t, pred_c, hidden_treatment, hidden_control = model(xu, xp, edge_index)
-    loss = criterion(treatment[mask], pred_t[mask], pred_c[mask], outcome[mask])
+    # pred_t, pred_c, hidden_treatment, hidden_control = model(xu, xp, edge_index)    
+    # pred_c = model(torch.cat[xu,0], xp, edge_index)
+    # loss = criterion(treatment[mask], pred_t[mask], pred_c[mask], outcome[mask])
+    pred = model(xu, xp, edge_index)
+    loss = criterion(treatment[mask], pred[mask], outcome[mask])
     
     loss.backward()  
     optimizer.step() 
@@ -52,8 +55,11 @@ def test(mask: np.ndarray,
     Tests the model. 
     """
     model.eval()
-    pred_t, pred_c, hidden_treatment, hidden_control = model(xu, xp, edge_index)
-    loss = criterion(treatment[mask], pred_t[mask], pred_c[mask], outcome[mask])
+    # pred_t, pred_c, hidden_treatment, hidden_control = model(xu, xp, edge_index)
+    # loss = criterion(treatment[mask], pred_t[mask], pred_c[mask], outcome[mask])
+
+    pred = model(torch.cat[xu], xp, edge_index)
+    loss = criterion(treatment[mask], pred[mask], outcome[mask])
     return loss
 
 
@@ -109,7 +115,9 @@ def evaluate(model:torch.nn.Module,
              xu: torch.tensor, 
              xp: torch.tensor, 
              edge_index : torch.tensor,
+             treatment_u:torch.tensor,
              criterion) -> (float, float,float):
+
     """
     Evaluates the model on the test set.
     """
@@ -117,8 +125,11 @@ def evaluate(model:torch.nn.Module,
     model.eval()
 
     mask = test_indices
-    pred_t, pred_c, hidden_treatment, hidden_control = model(xu, xp, edge_index)
-
+    # pred_t, pred_c, hidden_treatment, hidden_control = model(xu, xp, edge_index)
+    # test_loss = criterion(treatment[mask], pred_t[mask], pred_c[mask], outcome[mask])
+    pred_c = model(torch.cat([xu,treatment_u],dim=1), xp, edge_index)
+    treatment_u[mask]=1
+    pred_t = model(torch.cat([xu,treatment_u],dim=1), xp, edge_index)
     test_loss = criterion(treatment[mask], pred_t[mask], pred_c[mask], outcome[mask])
 
     treatment_test = treatment[test_indices].detach().cpu().numpy()
@@ -147,6 +158,15 @@ def outcome_regression_loss_l1(t_true: torch.tensor,
     return (loss0 + loss1)/2
 
 
+def outcome_regression_loss_l1_one_output(y_pred: torch.tensor, 
+                               y_true: torch.tensor) -> torch.tensor:
+    """
+    Compute mse for treatment and control output layers using treatment vector for masking out the counterfactual predictions
+    """
+    # loss0 = torch.mean(((1. - t_true) * F.l1_loss(y_control_pred.squeeze(), y_true, reduction='none')) )
+    loss = F.l1_loss(y_pred.squeeze(), y_true)
+
+    return loss
 
 def outcome_regression_loss(t_true: torch.tensor,
                             y_treatment_pred: torch.tensor, 
