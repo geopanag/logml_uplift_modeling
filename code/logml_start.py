@@ -91,6 +91,8 @@ def main():
             treatment_u = treatment_n[:,1]
             product_treatment_matrix = torch.sparse.mm(sparse_matrix_edge_index.t(), treatment_n.to_sparse())
             treatment_neighborhood = torch.sparse.mm(sparse_matrix_edge_index, product_treatment_matrix)
+            treatment_neighborhood=treatment_neighborhood.to_dense()
+            print(treatment_neighborhood)
             min_tn = treatment_neighborhood.min(dim=0,keepdim=True).values
             max_tn = treatment_neighborhood.max(dim=0,keepdim=True).values
             treatment_neighborhood = (treatment_neighborhood-min_tn)/(max_tn-min_tn)
