@@ -22,7 +22,8 @@ def make_treatment_feature(x, train_indices, treatment):
 
 
 def main():
-     
+    seed = 0
+    set_seed(seed)
     data = torch.load("../data/retail/processed/data.pt")[0]
 
     results_file_name = "../results/results_start.csv"
@@ -37,12 +38,10 @@ def main():
     out_channels = 1
     num_epochs = 300
     print("Depth of GNN is ", no_layers)
-
-    seed = 0
+    
     # k = 10 # 20,10,7,5,4,3
     validation_fraction = 5
     patience = 50
-
     print_per_epoch = 50
 
     criterion_train = outcome_regression_loss_l1_one_output
@@ -54,10 +53,7 @@ def main():
     xu = data['user']['x'].to(device)
     treatment = data['user']['t'].to(device)
     outcome = data['user']['y'].to(device)
-    
-
-    set_seed(seed)
-    
+        
     for i in [10]: # different slip percentage
         k = i
         model_file_name = "../models/"+conv_layer+"_L_"+str(no_layers)+ "_kfold_"+str(k)+ "_model.pt"
@@ -121,7 +117,7 @@ def main():
             result_row = []
             result_row.append(up40)
             result_row.append(up20)
-            result_row.append(test_loss)
+            result_row.append(test_loss.values)
             
         
             # Benchmarks

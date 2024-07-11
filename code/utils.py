@@ -12,6 +12,7 @@ import random
 
 
 def set_seed(seed:int)->None: 
+    torch.cuda.manual_seed(seed)
     torch.manual_seed(seed) 
     np.random.seed(seed)
     random.seed(seed)
@@ -84,7 +85,7 @@ def experiment(model:torch.nn.Module,
     train_losses = []
     val_losses = []
     best_val_loss = np.inf
-    print_per_epoch = 50
+    print_per_epoch = 20
     for epoch in range(num_epochs):
         train_loss = train(train_indices, model, xu, xp, edge_index, treatment, outcome, optimizer, criterion)
         val_loss = test(val_indices, model, xu, xp, edge_index, treatment, outcome, criterion)
